@@ -47,8 +47,8 @@ pub struct RepoStatus {
 // with a call into it. The pure-Rust core is what carries the gix logic + tests.
 
 #[pyfunction]
-fn is_git_repo(_path: String) -> PyResult<bool> {
-    todo!("repo::is_git_repo (gix::discover)")
+fn is_git_repo(path: String) -> PyResult<bool> {
+    Ok(crate::repo::is_git_repo(std::path::Path::new(&path)))
 }
 
 #[pyfunction]
