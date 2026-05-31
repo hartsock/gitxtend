@@ -41,6 +41,9 @@ pub use ahead_behind::ahead_behind;
 mod rev_list_count;
 pub use rev_list_count::rev_list_count;
 
+mod log_subjects;
+pub use log_subjects::log_subjects;
+
 /// Temp-dir git fixtures shared by the per-method parity tests.
 ///
 /// Fixtures are built with the real `git` CLI, so each parity test asserts

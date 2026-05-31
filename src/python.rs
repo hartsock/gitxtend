@@ -96,8 +96,13 @@ fn rev_list_count(path: String, range_spec: String) -> PyResult<usize> {
 }
 
 #[pyfunction]
-fn log_subjects(_path: String, _range_spec: String, _max_count: usize) -> PyResult<Vec<String>> {
-    todo!("repo::log_subjects (summaries, newest first)")
+#[pyo3(signature = (path, range_spec, max_count=10))]
+fn log_subjects(path: String, range_spec: String, max_count: usize) -> PyResult<Vec<String>> {
+    Ok(crate::repo::log_subjects(
+        std::path::Path::new(&path),
+        &range_spec,
+        max_count,
+    ))
 }
 
 #[pyfunction]
