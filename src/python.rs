@@ -88,8 +88,11 @@ fn ahead_behind(path: String, upstream: String) -> PyResult<(usize, usize)> {
 }
 
 #[pyfunction]
-fn rev_list_count(_path: String, _range_spec: String) -> PyResult<usize> {
-    todo!("repo::rev_list_count (soft-fail 0)")
+fn rev_list_count(path: String, range_spec: String) -> PyResult<usize> {
+    Ok(crate::repo::rev_list_count(
+        std::path::Path::new(&path),
+        &range_spec,
+    ))
 }
 
 #[pyfunction]
