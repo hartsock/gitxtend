@@ -71,9 +71,9 @@ def fetch(path, remote=None) -> bool
 ## Roll-up (port of check_repo)
 
 ```python
-class RepoStatus:
-    path: str
-    state: str            # one of SyncState values (see below)
+class RepoStatus:                # field names match the source RepoStatus exactly
+    path: str                    # a Path in Python; resolved absolute
+    sync_state: str              # NOT `state` — one of SyncState values (see below)
     local_branch: str | None
     tracking_branch: str | None
     local_sha: str | None
@@ -85,27 +85,45 @@ class RepoStatus:
     error: str | None
 
 def repo_status(path, fetch=True) -> RepoStatus
-    # Mirrors check_repo exactly:
-    #   1. not a repo            -> state="error", error set
-    #   2. no upstream           -> state="no-remote", is_dirty filled
-    #   3. fetch (if requested)
-    #   4. compute ahead/behind, fill new_remote_commits when behind>0
-    #   5. decide state via the tree below
+    # Mirrors check_repo VERBATIM. The field is `sync_state`, not `state`.
+    # See PORTING.md → repo_status for the line-for-line sequence.
 ```
 
 ### SyncState values (exact strings)
 
 `"up-to-date" | "ahead" | "behind" | "diverged" | "dirty" | "no-remote" | "error"`
 
-### State decision tree
+### State decision (must match check_repo — verbatim)
+
+`check_repo` gates on **SHA equality first**, then ahead/behind. It does **not**
+return `DIRTY` — `is_dirty` is recorded as a flag only. The `DIRTY` state is
+produced by the separate *scan* path (workspace auto-discovery), which a later
+milestone ports alongside this roll-up.
 
 ```
-ahead>0 and behind>0   -> "diverged"
-ahead>0                -> "ahead"
-behind>0               -> "behind"
-is_dirty               -> "dirty"
-else                   -> "up-to-date"
+not path.exists()        -> "error"   (error = "Directory not found: {path}")
+not is_git_repo(path)    -> "error"   (error = "Not a git repository: {path}")
+tracking_branch is None  -> "no-remote"   (sets local_branch, local_sha,
+                                            is_dirty; leaves tracking_branch None)
+fetch fails              -> "error"   (error = "Fetch failed: {stderr}";
+                                        sets local_branch, tracking_branch)
+local_sha == remote_sha  -> "up-to-date"
+else:  ahead  = count("{tracking}..HEAD")
+       behind = count("HEAD..{tracking}")
+       ahead>0 and behind>0 -> "diverged"
+       behind>0             -> "behind"
+       else                 -> "ahead"
 ```
+
+`ahead_count` / `behind_count` are always populated; `new_remote_commits` =
+`log_subjects("HEAD..{tracking}", 10)` only when `behind_count > 0`.
+
+> **Field name caveat for the implementor.** The compiled `RepoStatus`
+> `#[pyclass]` currently exposes `state`; the source contract (and the consuming
+> Python code) uses `sync_state`. For a true drop-in, rename the pyclass getter
+> to `sync_state` when `repo_status` is implemented (touches `src/python.rs` and
+> the `.pyi` stub). Flagged here rather than changed, to avoid racing the
+> in-flight per-method implementation.
 
 ## Adapter for the plugin
 

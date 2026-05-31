@@ -90,25 +90,58 @@ Legend: **CLI** = what git-tend runs today · **gix** = intended approach.
 
 ## repo_status(path, fetch) -> RepoStatus  (src/status.rs)
 
-Port `check_repo` verbatim:
+Port the source `check_repo` **verbatim**. Order and error strings matter —
+tests assert on them. The struct field is `sync_state` (not `state`); `DIRTY`
+is **never** returned here.
 
 ```
-status = RepoStatus(path)
-if not is_git_repo(path):            -> error="not a git repository", state=ERROR; return
-status.local_branch = current_branch(path)
-status.tracking_branch = tracking_branch(path)
-if tracking_branch is None:          -> state=NO_REMOTE; is_dirty = not is_clean; return
-if fetch:                             fetch(path)
-status.local_sha  = head_sha(path)
-status.remote_sha = remote_head_sha(path, tracking_branch)
-(ahead, behind)   = ahead_behind(path, tracking_branch)
-if behind > 0:    new_remote_commits = log_subjects(path, f"HEAD..{tracking_branch}", 10)
-is_dirty = not is_clean(path)
-state = decision_tree(ahead, behind, is_dirty)   # see API.md
+path = expanduser(resolve(path))
+if not path.exists():       -> sync_state=ERROR, error=f"Directory not found: {path}"; return
+if not is_git_repo(path):   -> sync_state=ERROR, error=f"Not a git repository: {path}"; return
+
+local_branch = current_branch(path)
+tracking     = tracking_branch(path)
+
+if tracking is None:        -> sync_state=NO_REMOTE,
+                               local_branch, local_sha=head_sha(path),
+                               is_dirty=not is_clean(path);
+                               (tracking_branch left None); return
+
+if fetch:
+    ok, stderr = _fetch(path)
+    if not ok:              -> sync_state=ERROR, local_branch, tracking_branch=tracking,
+                               error=f"Fetch failed: {stderr}"; return
+
+local_sha  = head_sha(path)
+remote_sha = remote_head_sha(path, tracking)
+is_dirty   = not is_clean(path)
+
+if local_sha == remote_sha:
+    sync_state = UP_TO_DATE
+else:
+    ahead  = rev_list_count(f"{tracking}..HEAD")
+    behind = rev_list_count(f"HEAD..{tracking}")
+    sync_state = DIVERGED if (ahead>0 and behind>0) else BEHIND if behind>0 else AHEAD
+
+ahead_count  = rev_list_count(f"{tracking}..HEAD")      # always recomputed
+behind_count = rev_list_count(f"HEAD..{tracking}")
+new_remote_commits = log_subjects(f"HEAD..{tracking}", 10) if behind_count>0 else []
+return RepoStatus(path, sync_state, local_branch, tracking, local_sha, remote_sha,
+                  ahead_count, behind_count, new_remote_commits, is_dirty)
 ```
 
-Keep `error` as a human-readable string identical to the Python messages where
-tests assert on them.
+Notes for the implementor:
+- `check_repo` **never** yields `DIRTY`; `is_dirty` is a flag only. The `DIRTY`
+  state lives in the separate *scan* path (workspace auto-discovery) — port that
+  alongside, not inside, `repo_status`.
+- A fetch **failure** becomes `sync_state=ERROR` with `error="Fetch failed:
+  {stderr}"`, so the roll-up needs fetch's stderr, not just a bool. Provide an
+  internal `_fetch(path) -> (ok, stderr)`; the public `fetch()` may still return
+  `bool` for the per-method shim.
+- `ahead_behind()` is the efficiency win, but to stay byte-compatible the
+  roll-up may call it once and reuse the pair for both the decision and the
+  counts.
+- Keep every `error` string identical to the text above.
 
 ---
 
