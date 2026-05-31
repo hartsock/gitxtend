@@ -23,6 +23,9 @@ pub use crate::error::{GitxtendError, Result};
 mod is_git_repo;
 pub use is_git_repo::is_git_repo;
 
+mod head_sha;
+pub use head_sha::head_sha;
+
 /// Temp-dir git fixtures shared by the per-method parity tests.
 ///
 /// Fixtures are built with the real `git` CLI, so each parity test asserts
