@@ -63,8 +63,9 @@ fn current_branch(path: String) -> PyResult<Option<String>> {
 }
 
 #[pyfunction]
-fn tracking_branch(_path: String) -> PyResult<Option<String>> {
-    todo!("repo::tracking_branch (configured upstream)")
+fn tracking_branch(path: String) -> PyResult<Option<String>> {
+    // soft-fail: any error -> None (API.md)
+    Ok(crate::repo::tracking_branch(std::path::Path::new(&path)).unwrap_or(None))
 }
 
 #[pyfunction]
