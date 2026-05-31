@@ -20,6 +20,9 @@ pub use crate::error::{GitxtendError, Result};
 // ---- method registrations (one block per implemented method) -------------
 // (methods land here as M1 progresses — see docs/ROADMAP.md M1 ordering)
 
+mod is_git_repo;
+pub use is_git_repo::is_git_repo;
+
 /// Temp-dir git fixtures shared by the per-method parity tests.
 ///
 /// Fixtures are built with the real `git` CLI, so each parity test asserts
