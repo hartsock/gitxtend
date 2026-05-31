@@ -122,8 +122,12 @@ fn status_counts(path: String) -> PyResult<(usize, usize)> {
 }
 
 #[pyfunction]
-fn fetch(_path: String, _remote: Option<String>) -> PyResult<bool> {
-    todo!("repo::fetch (gix fetch, contained shell-out fallback)")
+#[pyo3(signature = (path, remote=None))]
+fn fetch(path: String, remote: Option<String>) -> PyResult<bool> {
+    Ok(crate::repo::fetch(
+        std::path::Path::new(&path),
+        remote.as_deref(),
+    ))
 }
 
 #[pyfunction]

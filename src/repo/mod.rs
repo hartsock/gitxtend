@@ -56,6 +56,9 @@ pub use remote_urls::remote_urls;
 mod last_commit_date;
 pub use last_commit_date::last_commit_date;
 
+mod fetch;
+pub use fetch::{fetch, fetch_result};
+
 /// Temp-dir git fixtures shared by the per-method parity tests.
 ///
 /// Fixtures are built with the real `git` CLI, so each parity test asserts
