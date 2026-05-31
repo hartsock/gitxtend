@@ -7,27 +7,47 @@ description = "gitoxide-backed git repository tending, exposed to Python via PyO
 repository = "https://github.com/hartsock/gitxtend"
 authors = ["Shawn Hartsock"]
 
-# Primary artifact: a PyO3 extension module (Python import target).
-# The optional standalone CLI (M3) is added later as a [[bin]] target reusing
-# the same repo.rs/status.rs core.
+# Primary artifact: a PyO3 extension module (Python import target). The optional
+# standalone CLI (M3) is added later as a [[bin]] target reusing repo/status.
 [lib]
 name = "gitxtend"
 crate-type = ["cdylib", "rlib"]
 
+[features]
+# Pure-Rust core builds by DEFAULT → `cargo test` / `cargo build` need no Python
+# interpreter and link no libpython. The per-method M1 work is validated this way.
+default = []
+# PyO3 Python bindings (the `import gitxtend` surface). Opt-in.
+python = ["dep:pyo3"]
+# Turned on by maturin for the wheel build; layered on top of `python` so that a
+# plain `cargo test` (neither feature) never pulls pyo3/extension-module.
+extension-module = ["python", "pyo3/extension-module"]
+
 [dependencies]
-# Pin to a recent gix release on gnuc; align the Rust toolchain with gilabot
-# CI (.ci/tool-versions.toml). Enable only the features the read side needs
-# (status, revision walk, refs, config, and — for fetch — the network/transport
-# features). Keep the feature set minimal.
-gix = { version = "*", default-features = false, features = [
+# gitoxide read side. Pinned to a recent release on gnuc (rustc 1.93). Features
+# are added per method: status (is_clean/status_counts), revision (ahead_behind/
+# rev_list_count/log_subjects), dirwalk (untracked), blocking-network-client
+# (fetch — M1's one network call).
+# NOTE: gix's default features are kept ON. Stripping them
+# (`default-features = false`) cuts feature propagation into gix sub-crates
+# (e.g. gix-hash's `Kind` match goes non-exhaustive) and fails to build on
+# rustc 1.93. We add the read-side features on top of the defaults.
+#
+# Pinned to 0.70 (not the 0.84 tip): gix 0.84's `status` feature requires a
+# `gix-worktree-state` version not published to crates.io — its sub-crate tree
+# is internally inconsistent. 0.70 resolves cleanly with the full read-side set.
+gix = { version = "0.70", features = [
     "status",
     "revision",
     "dirwalk",
+    "blocking-network-client",
 ] }
 
-# PyO3 — extension-module so the build links against the right Python.
-pyo3 = { version = "*", features = ["extension-module"] }
+# PyO3 — only compiled when the `python` feature is on. `extension-module` is
+# layered via the crate feature of the same name, so `cargo test` links no
+# libpython and the pure-Rust core stays interpreter-free.
+pyo3 = { version = "0.28", optional = true, default-features = false, features = ["macros"] }
 
 [dev-dependencies]
-# For parity tests vs the git CLI and temp-dir fixtures.
-tempfile = "*"
+# Temp-dir fixtures for parity tests vs the git CLI.
+tempfile = "3"
