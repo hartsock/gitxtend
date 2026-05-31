@@ -82,8 +82,9 @@ fn remote_head_sha(path: String, remote_ref: String) -> PyResult<Option<String>>
 }
 
 #[pyfunction]
-fn ahead_behind(_path: String, _upstream: String) -> PyResult<(usize, usize)> {
-    todo!("repo::ahead_behind (single graph walk)")
+fn ahead_behind(path: String, upstream: String) -> PyResult<(usize, usize)> {
+    // soft-fail: unresolvable revs -> (0, 0)
+    Ok(crate::repo::ahead_behind(std::path::Path::new(&path), &upstream).unwrap_or((0, 0)))
 }
 
 #[pyfunction]
