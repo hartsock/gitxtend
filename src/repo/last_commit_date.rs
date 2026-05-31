@@ -22,13 +22,25 @@ mod tests {
     use super::*;
     use crate::repo::fixtures::{git, repo, write};
 
+    /// git's `%aI` renders a zero (UTC) offset as `Z` on newer git but `+00:00`
+    /// on older git — a host-git-version quirk. gitxtend is deterministic and
+    /// always emits `+00:00`, so normalize git's output to compare the same
+    /// instant regardless of the host git version (see DESIGN.md: no dependence
+    /// on the ambient git version).
+    fn norm(s: String) -> String {
+        match s.strip_suffix('Z') {
+            Some(stripped) => format!("{stripped}+00:00"),
+            None => s,
+        }
+    }
+
     #[test]
     fn test_last_commit_date_initial_repo() {
         let td = repo();
         let path = td.path();
         assert_eq!(
             last_commit_date(path).unwrap(),
-            Some(git(path, &["log", "-1", "--format=%aI"]))
+            Some(norm(git(path, &["log", "-1", "--format=%aI"])))
         );
     }
 
@@ -41,7 +53,7 @@ mod tests {
         git(path, &["commit", "-q", "-m", "second commit"]);
         assert_eq!(
             last_commit_date(path).unwrap(),
-            Some(git(path, &["log", "-1", "--format=%aI"]))
+            Some(norm(git(path, &["log", "-1", "--format=%aI"])))
         );
     }
 
