@@ -106,8 +106,8 @@ fn log_subjects(path: String, range_spec: String, max_count: usize) -> PyResult<
 }
 
 #[pyfunction]
-fn remote_urls(_path: String) -> PyResult<HashMap<String, String>> {
-    todo!("repo::remote_urls (name -> fetch url)")
+fn remote_urls(path: String) -> PyResult<HashMap<String, String>> {
+    Ok(crate::repo::remote_urls(std::path::Path::new(&path)))
 }
 
 #[pyfunction]
