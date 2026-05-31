@@ -23,4 +23,14 @@ cargo clippy --features extension-module -- -D warnings
 echo "[pre-push] cargo build (python)"
 cargo build --features extension-module
 
+# Python E2E (mirrors the ci.yml `python-e2e` job). Best-effort: needs a local
+# .venv with maturin installed. CI is the authoritative gate.
+if [ -x .venv/bin/maturin ]; then
+  echo "[pre-push] maturin develop + Python E2E vs git"
+  .venv/bin/maturin develop --release >/dev/null
+  .venv/bin/python python/tests/test_e2e.py
+else
+  echo "[pre-push] (skipping Python E2E — no .venv/bin/maturin; gated by CI python-e2e)"
+fi
+
 echo "[pre-push] OK"

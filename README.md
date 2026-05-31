@@ -5,10 +5,12 @@ detecting unpushed commits, untracked work, and out-of-sync branches across
 many repositories — backed by [gitoxide (`gix`)][gix] and exposed to Python
 through [PyO3]/[maturin].
 
-> **Status: scaffold / specification.** This repository currently contains the
-> design, the API contract, and build stubs. See
+> **Status: v0.1.0 — read side implemented.** All 13 read primitives plus the
+> `repo_status` roll-up are implemented (Rust/gix) and exposed to Python, each
+> with parity tests vs the `git` CLI and an end-to-end suite. Next:
+> plugin adoption and the write side — see [`docs/ROADMAP.md`](docs/ROADMAP.md).
 > [`docs/DESIGN.md`](docs/DESIGN.md) and [`docs/PORTING.md`](docs/PORTING.md)
-> for exactly what to implement.
+> cover the architecture.
 
 ## Why this exists
 
@@ -32,10 +34,10 @@ The motivating incident: a local-only **unpushed** commit on `main` was nearly
 lost during a merge+reset. Tending is the discipline that catches that;
 `gitxtend` makes tending fast enough to run constantly.
 
-## What it will do (v1 scope)
+## What it does (v0.1.0 — the read side)
 
 The first milestone ports the **read side** of tending — the part that *detects*
-work that needs attention, without mutating any repo:
+work that needs attention, without mutating any repo. All of it is implemented:
 
 | Capability | git-tend method(s) | gitxtend |
 |---|---|---|
@@ -62,9 +64,10 @@ gitxtend/
 ├── Cargo.toml            # Rust crate (cdylib for PyO3; optional bin target)
 ├── pyproject.toml        # maturin build backend → Python wheel
 ├── src/
-│   ├── lib.rs            # PyO3 module entry — #[pymodule] gitxtend
-│   ├── repo.rs           # gix-backed read operations (TODO)
-│   └── status.rs         # RepoStatus roll-up + SyncState logic (TODO)
+│   ├── lib.rs            # crate root (error/repo/status modules; python feature)
+│   ├── python.rs         # PyO3 module entry — #[pymodule] gitxtend (feature-gated)
+│   ├── repo/             # gix-backed read primitives, one file per method
+│   └── status.rs         # repo_status roll-up + SyncState decision tree
 ├── python/gitxtend/
 │   └── __init__.pyi      # type stubs for the compiled module
 └── docs/

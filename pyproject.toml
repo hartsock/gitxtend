@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "gitxtend"
-version = "0.0.1"
+version = "0.1.0"
 description = "gitoxide-backed git repository tending, exposed to Python via PyO3"
 readme = "README.md"
 license = { text = "Apache-2.0" }
