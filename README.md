@@ -6,18 +6,17 @@ many repositories — backed by [gitoxide (`gix`)][gix] and exposed to Python
 through [PyO3]/[maturin].
 
 > **Status: scaffold / specification.** This repository currently contains the
-> design, the API contract, and build stubs. The Rust implementation is built
-> on **gnuc** (the development machine), not on the bastion. See
+> design, the API contract, and build stubs. See
 > [`docs/DESIGN.md`](docs/DESIGN.md) and [`docs/PORTING.md`](docs/PORTING.md)
 > for exactly what to implement.
 
 ## Why this exists
 
-The [`gila git-tend`][gittend] plugin already does repository tending well, but
+A Python repository-*tending* tool (`git-tend`) already does this well, but
 every git operation forks the `git` CLI via `subprocess.run(["git", ...])`.
-A `git-tend status` / `scan` across a workspace of N repos spawns dozens of
-short-lived `git` processes per run, and the tool's behaviour is coupled to
-whatever `git` binary and version happens to be on `PATH`.
+A `status` / `scan` across a workspace of N repos spawns dozens of short-lived
+`git` processes per run, and the tool's behaviour is coupled to whatever `git`
+binary and version happens to be on `PATH`.
 
 `gitxtend` replaces that seam with **in-process git** via gitoxide:
 
@@ -25,12 +24,13 @@ whatever `git` binary and version happens to be on `PATH`.
 - **No `git` on `PATH` dependency.** The git logic is compiled in.
 - **One artifact.** A single compiled module (`.so` wheel) — or, optionally, a
   standalone CLI binary — carries the whole git layer.
-- **Same contract.** It re-implements the exact method surface of git-tend's
-  `GitService` so the Python plugin can adopt it with a one-line import swap.
+- **Same contract.** It re-implements the exact method surface of the Python
+  `GitService` git layer it replaces, so the tending tool can adopt it with a
+  one-line import swap.
 
-The motivating incident: while merging `my_home#46`, a local-only **unpushed**
-commit on `main` was nearly lost during a merge+reset. Tending is the discipline
-that catches that; `gitxtend` makes tending fast enough to run constantly.
+The motivating incident: a local-only **unpushed** commit on `main` was nearly
+lost during a merge+reset. Tending is the discipline that catches that;
+`gitxtend` makes tending fast enough to run constantly.
 
 ## What it will do (v1 scope)
 
@@ -49,10 +49,10 @@ work that needs attention, without mutating any repo:
 | Last commit date (ISO 8601) | `last_commit_date` | `last_commit_date(path)` |
 | Modified / untracked counts | `status_counts` | `status_counts(path)` |
 | Fetch from remote | `fetch` | `fetch(path, remote=None)` |
-| **Roll-up** | `StatusService.check_repo` | `repo_status(path, fetch=True) -> RepoStatus` |
+| **Roll-up** | `check_repo` | `repo_status(path, fetch=True) -> RepoStatus` |
 
 The **write side** (`pull --ff-only`, `push`, `add`, `commit`, `stash`,
-`branch`, `reset --hard`) stays in the Python plugin shelling out to `git` until
+`branch`, `reset --hard`) stays in the host tool shelling out to `git` until
 the read path is proven in production. See [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 ## Layout
@@ -74,24 +74,22 @@ gitxtend/
     └── ROADMAP.md        # milestones; read-side first, write-side later
 ```
 
-## Building (on gnuc)
+## Building
 
 ```bash
-# from a checkout on gnuc, inside ~/venv
+# from a checkout, inside your Python virtualenv
 maturin develop --release      # build + install into the active venv
 # or, to produce a distributable wheel:
 maturin build --release
 ```
 
-Toolchain: Rust (pin to the gilabot CI toolchain — see
-`.ci/tool-versions.toml` in gilabot), `maturin`, Python 3.11+.
+Toolchain: a recent stable Rust, `maturin`, Python 3.11+.
 
 ## Integration target
 
-Drop-in for `gila_plugin_git_tend.services.git_service.GitService`'s read
-methods. The plugin keeps its CLI, config, forge (gh/glab), and board logic;
-only the git layer changes. See [`docs/API.md`](docs/API.md) for the adapter
-shape.
+Drop-in for a Python `GitService` git layer's read methods. The host tool keeps
+its CLI, config, forge (gh/glab), and board logic; only the git layer changes.
+See [`docs/API.md`](docs/API.md) for the adapter shape.
 
 ## License
 
@@ -100,4 +98,3 @@ Apache License 2.0 — see [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE).
 [gix]: https://github.com/Byron/gitoxide
 [PyO3]: https://pyo3.rs
 [maturin]: https://www.maturin.rs
-[gittend]: https://github.com/hartsock/gilabot (gila-plugin-git-tend)
