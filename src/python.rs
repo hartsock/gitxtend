@@ -20,7 +20,7 @@ pub struct RepoStatus {
     #[pyo3(get)]
     pub path: String,
     #[pyo3(get)]
-    pub state: String, // SyncState value, see docs/API.md
+    pub sync_state: String, // SyncState value, see docs/API.md (field is `sync_state`, not `state`)
     #[pyo3(get)]
     pub local_branch: Option<String>,
     #[pyo3(get)]
@@ -131,8 +131,22 @@ fn fetch(path: String, remote: Option<String>) -> PyResult<bool> {
 }
 
 #[pyfunction]
-fn repo_status(_path: String, _fetch: bool) -> PyResult<RepoStatus> {
-    todo!("status::repo_status (full SyncState decision tree)")
+#[pyo3(signature = (path, fetch=true))]
+fn repo_status(path: String, fetch: bool) -> PyResult<RepoStatus> {
+    let d = crate::status::repo_status(std::path::Path::new(&path), fetch);
+    Ok(RepoStatus {
+        path: d.path,
+        sync_state: d.sync_state,
+        local_branch: d.local_branch,
+        tracking_branch: d.tracking_branch,
+        local_sha: d.local_sha,
+        remote_sha: d.remote_sha,
+        ahead_count: d.ahead_count,
+        behind_count: d.behind_count,
+        new_remote_commits: d.new_remote_commits,
+        is_dirty: d.is_dirty,
+        error: d.error,
+    })
 }
 
 #[pymodule]

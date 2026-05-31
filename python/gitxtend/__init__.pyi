@@ -8,7 +8,7 @@ _Path = str | os.PathLike[str]
 
 class RepoStatus:
     path: str
-    state: str  # "up-to-date"|"ahead"|"behind"|"diverged"|"dirty"|"no-remote"|"error"
+    sync_state: str  # "up-to-date"|"ahead"|"behind"|"diverged"|"dirty"|"no-remote"|"error"
     local_branch: str | None
     tracking_branch: str | None
     local_sha: str | None
