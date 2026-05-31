@@ -5,7 +5,7 @@
 - README, DESIGN, API contract, PORTING guide.
 - Build stubs: `Cargo.toml`, `pyproject.toml`, `src/lib.rs` (signatures +
   `todo!()`), `.pyi` type stubs.
-- **Outcome:** gnuc can `git clone`, `maturin develop`, and get an importable
+- **Outcome:** you can `git clone`, `maturin develop`, and get an importable
   module whose functions raise `NotImplementedError`/`todo!()`.
 
 ## M1 — Read side (the unpushed-work detector)
@@ -17,16 +17,16 @@ Implement, with parity tests vs the `git` CLI, in this order:
 5. `remote_urls`, `last_commit_date`.
 6. `repo_status()` roll-up + full SyncState tree.
 - **Acceptance:** every method agrees with `git` on the fixture matrix;
-  `repo_status()` reproduces `StatusService.check_repo` on diverged/ahead/
+  `repo_status()` reproduces `check_repo` on diverged/ahead/
   behind/dirty/no-remote/error fixtures.
 - **Note:** `fetch()` may ship as a contained shell-out if gix fetch is
   unstable (see PORTING.md). Everything else is pure gix.
 
 ## M2 — Plugin adoption
-- Add the `GitService` read-method shim (API.md) in gila-plugin-git-tend, or
-  point `StatusService` straight at `gitxtend.repo_status()`.
+- Add the `GitService` read-method shim (API.md) in the git-tend tool, or
+  point the status roll-up straight at `gitxtend.repo_status()`.
 - Gate behind a feature flag / env var so it can be rolled back instantly.
-- Run `gila git-tend scan` / `status` across the real workspace; compare
+- Run the git-tend `scan` / `status` across the real workspace; compare
   output to the subprocess implementation byte-for-byte.
 
 ## M3 — Standalone CLI (optional)
@@ -41,4 +41,4 @@ Implement, with parity tests vs the `git` CLI, in this order:
 
 ## Out of scope (stays in Python, indefinitely)
 - CLI/UX, YAML config, forge integration (gh/glab PR/MR auto-merge),
-  knowledge-board conflict resolution, systemd timer.
+  board conflict resolution, systemd timer.

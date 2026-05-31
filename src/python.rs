@@ -10,7 +10,7 @@
 use pyo3::prelude::*;
 use std::collections::HashMap;
 
-/// Roll-up mirroring `StatusService.check_repo` / `models.RepoStatus`.
+/// Roll-up mirroring `check_repo` / `RepoStatus`.
 ///
 /// `skip_from_py_object`: this type is returned to Python, never parsed from it,
 /// so we opt out of the (now-opt-in) `FromPyObject` derive.

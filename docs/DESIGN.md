@@ -9,10 +9,10 @@ import swap in the Python plugin.
 
 ## Background: the seam we are replacing
 
-In `gila-plugin-git-tend`, **all** git operations funnel through one class:
+In the `git-tend` tool, **all** git operations funnel through one class:
 
 ```python
-# gila_plugin_git_tend/services/git_service.py
+# services/git_service.py
 class GitService:
     def run(self, path, args):
         return subprocess.run(["git"] + args, cwd=path,
@@ -23,8 +23,8 @@ class GitService:
     # last_commit_date, status_counts
 ```
 
-Everything above `GitService` (`StatusService`, `ScanService`, `TendService`,
-`PRService`, config, board, CLI) is untouched by this project. They consume
+Everything above `GitService` (the higher-level services, config, board, CLI)
+is untouched by this project. They consume
 `GitService` purely through its method surface. That surface is our contract.
 
 ## Why gitoxide
@@ -66,7 +66,7 @@ src/lib.rs      #[pymodule] — registers the Python-visible functions/classes,
 src/repo.rs     The gix-backed primitives, one per GitService read method.
                 Pure Rust, no PyO3 — unit-testable with gix fixtures.
 
-src/status.rs   repo_status(): the StatusService.check_repo roll-up, including
+src/status.rs   repo_status(): the check_repo roll-up, including
                 the SyncState decision tree, expressed in Rust over repo.rs.
 ```
 
@@ -86,6 +86,6 @@ and reused by an optional CLI `bin` target.
 ## Non-goals
 
 - Reimplementing the CLI, YAML config, forge (gh/glab) integration, the
-  knowledge-board logic, or the systemd timer. Those stay in Python.
+  board logic, or the systemd timer. Those stay in Python.
 - Replacing the write/merge/conflict machinery in v1.
 - Being a general-purpose git library. Scope is exactly git-tend's needs.

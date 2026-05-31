@@ -24,7 +24,7 @@ python = ["dep:pyo3"]
 extension-module = ["python", "pyo3/extension-module"]
 
 [dependencies]
-# gitoxide read side. Pinned to a recent release on gnuc (rustc 1.93). Features
+# gitoxide read side. Pinned to a recent release (rustc 1.93). Features
 # are added per method: status (is_clean/status_counts), revision (ahead_behind/
 # rev_list_count/log_subjects), dirwalk (untracked), blocking-network-client
 # (fetch — M1's one network call).

@@ -1,8 +1,8 @@
 # gitxtend — Python API Contract
 
 This is the exact Python-visible surface the compiled module must expose. It
-mirrors `gila_plugin_git_tend.services.git_service.GitService` (read side) plus
-one roll-up that mirrors `StatusService.check_repo`.
+mirrors the `git-tend` tool's `GitService` (read side) plus one roll-up that
+mirrors its `check_repo`.
 
 Type stubs live in [`../python/gitxtend/__init__.pyi`](../python/gitxtend/__init__.pyi).
 
@@ -68,7 +68,7 @@ def fetch(path, remote=None) -> bool
     # Python caller must not care which.
 ```
 
-## Roll-up (port of StatusService.check_repo)
+## Roll-up (port of check_repo)
 
 ```python
 class RepoStatus:
@@ -85,7 +85,7 @@ class RepoStatus:
     error: str | None
 
 def repo_status(path, fetch=True) -> RepoStatus
-    # Mirrors StatusService.check_repo exactly:
+    # Mirrors check_repo exactly:
     #   1. not a repo            -> state="error", error set
     #   2. no upstream           -> state="no-remote", is_dirty filled
     #   3. fetch (if requested)
@@ -93,11 +93,11 @@ def repo_status(path, fetch=True) -> RepoStatus
     #   5. decide state via the tree below
 ```
 
-### SyncState values (exact strings, from models.SyncState)
+### SyncState values (exact strings)
 
 `"up-to-date" | "ahead" | "behind" | "diverged" | "dirty" | "no-remote" | "error"`
 
-### State decision tree (must match status_service.py)
+### State decision tree
 
 ```
 ahead>0 and behind>0   -> "diverged"
@@ -112,7 +112,7 @@ else                   -> "up-to-date"
 git-tend can adopt this with a shim that keeps the old class name:
 
 ```python
-# gila_plugin_git_tend/services/git_service.py  (read side)
+# services/git_service.py  (read side)
 import gitxtend
 
 class GitService:
@@ -133,6 +133,6 @@ class GitService:
     # write methods (pull/push/add/commit/stash/branch/reset) unchanged for now
 ```
 
-Or, better, route `StatusService` straight at `gitxtend.repo_status()` and
+Or, better, route the status roll-up straight at `gitxtend.repo_status()` and
 delete the per-method round-trips. Both are acceptable; the per-method shim is
 the lowest-risk first step.

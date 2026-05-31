@@ -3,7 +3,7 @@
 Per-method mapping from git-tend's `GitService` (which shells out to `git`) to
 gitoxide (`gix`) calls. This is the implementation checklist for `src/repo.rs`
 and `src/status.rs`. Crate versions are not pinned here — pin `gix` to a recent
-release in `Cargo.toml` and align the Rust toolchain with gilabot CI.
+release in `Cargo.toml` and use a recent stable Rust toolchain.
 
 Legend: **CLI** = what git-tend runs today · **gix** = intended approach.
 
@@ -90,7 +90,7 @@ Legend: **CLI** = what git-tend runs today · **gix** = intended approach.
 
 ## repo_status(path, fetch) -> RepoStatus  (src/status.rs)
 
-Port `StatusService.check_repo` verbatim:
+Port `check_repo` verbatim:
 
 ```
 status = RepoStatus(path)
@@ -123,5 +123,5 @@ tests assert on them.
 - **Python smoke tests** post-`maturin develop`: import the module, run
   `repo_status()` on a fixture, assert fields.
 
-See gilabot's rule: every behaviour needs a regression test; mock/contain
+Rule of thumb: every behaviour needs a regression test; mock/contain
 external resources.

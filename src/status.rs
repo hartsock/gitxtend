@@ -1,4 +1,4 @@
-//! Pure-Rust roll-up mirroring `StatusService.check_repo`. NO PyO3 here.
+//! Pure-Rust roll-up mirroring `check_repo`. NO PyO3 here.
 //!
 //! Implement `repo_status(path, fetch) -> RepoStatusData` following the exact
 //! sequence and SyncState decision tree in docs/PORTING.md / docs/API.md:
