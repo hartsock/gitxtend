@@ -52,8 +52,8 @@ fn is_git_repo(path: String) -> PyResult<bool> {
 }
 
 #[pyfunction]
-fn is_clean(_path: String) -> PyResult<bool> {
-    todo!("repo::is_clean (gix status, empty)")
+fn is_clean(path: String) -> PyResult<bool> {
+    Ok(crate::repo::is_clean(std::path::Path::new(&path))?)
 }
 
 #[pyfunction]
