@@ -75,8 +75,10 @@ fn head_sha(path: String) -> PyResult<Option<String>> {
 }
 
 #[pyfunction]
-fn remote_head_sha(_path: String, _remote_ref: String) -> PyResult<Option<String>> {
-    todo!("repo::remote_head_sha (resolve remote-tracking ref)")
+#[pyo3(signature = (path, remote_ref="origin/main".to_string()))]
+fn remote_head_sha(path: String, remote_ref: String) -> PyResult<Option<String>> {
+    // soft-fail: any error -> None (API.md)
+    Ok(crate::repo::remote_head_sha(std::path::Path::new(&path), &remote_ref).unwrap_or(None))
 }
 
 #[pyfunction]

@@ -32,6 +32,9 @@ pub use current_branch::current_branch;
 mod tracking_branch;
 pub use tracking_branch::tracking_branch;
 
+mod remote_head_sha;
+pub use remote_head_sha::remote_head_sha;
+
 /// Temp-dir git fixtures shared by the per-method parity tests.
 ///
 /// Fixtures are built with the real `git` CLI, so each parity test asserts
