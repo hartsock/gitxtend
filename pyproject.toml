@@ -21,6 +21,9 @@ Repository = "https://github.com/hartsock/gitxtend"
 
 [tool.maturin]
 # Compiled module imported as `import gitxtend`. Type stubs in python/gitxtend.
-features = ["pyo3/extension-module"]
+# `extension-module` is a crate feature that layers on `python` (which pulls
+# pyo3); see Cargo.toml [features]. A plain `cargo test` enables neither, so the
+# pure-Rust core stays interpreter-free.
+features = ["extension-module"]
 python-source = "python"
 module-name = "gitxtend._gitxtend"

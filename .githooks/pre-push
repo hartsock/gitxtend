@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# gitxtend pre-push hook — the local equivalent of CI.
+#
+# PIPELINE PARITY: this hook mirrors .github/workflows/ci.yml. When editing the
+# CI steps, update this hook to match (and vice-versa). Do not bypass with
+# --no-verify; if a check fails, fix the issue.
+#
+# Install once per clone:  git config core.hooksPath .githooks
+set -euo pipefail
+
+echo "[pre-push] cargo fmt --all --check"
+cargo fmt --all --check
+
+echo "[pre-push] cargo clippy (core) -D warnings"
+cargo clippy --no-default-features --all-targets -- -D warnings
+
+echo "[pre-push] cargo test (core)"
+cargo test --no-default-features
+
+echo "[pre-push] cargo clippy (python) -D warnings"
+cargo clippy --features extension-module -- -D warnings
+
+echo "[pre-push] cargo build (python)"
+cargo build --features extension-module
+
+echo "[pre-push] OK"

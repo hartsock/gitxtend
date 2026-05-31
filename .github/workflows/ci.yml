@@ -1,0 +1,41 @@
+# gitxtend CI — gates every PR to main.
+#
+# HOOK PARITY: this pipeline is mirrored by .githooks/pre-push. When editing the
+# steps here, update the hook to match (and vice-versa).
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check:
+    name: fmt + clippy + test (core) + build (python)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+
+      - name: rustfmt
+        run: cargo fmt --all --check
+
+      # The pure-Rust core (no PyO3 / no libpython): the M1 read methods live here.
+      - name: clippy (core)
+        run: cargo clippy --no-default-features --all-targets -- -D warnings
+      - name: test (core)
+        run: cargo test --no-default-features
+
+      # The PyO3 wheel surface. `extension-module` links no libpython, so it
+      # builds on CI without python-dev.
+      - name: clippy (python)
+        run: cargo clippy --features extension-module -- -D warnings
+      - name: build (python)
+        run: cargo build --features extension-module
