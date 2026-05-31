@@ -47,6 +47,9 @@ pub use log_subjects::log_subjects;
 mod is_clean;
 pub use is_clean::is_clean;
 
+mod status_counts;
+pub use status_counts::status_counts;
+
 /// Temp-dir git fixtures shared by the per-method parity tests.
 ///
 /// Fixtures are built with the real `git` CLI, so each parity test asserts

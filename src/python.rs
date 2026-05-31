@@ -116,8 +116,8 @@ fn last_commit_date(_path: String) -> PyResult<Option<String>> {
 }
 
 #[pyfunction]
-fn status_counts(_path: String) -> PyResult<(usize, usize)> {
-    todo!("repo::status_counts (modified, untracked)")
+fn status_counts(path: String) -> PyResult<(usize, usize)> {
+    Ok(crate::repo::status_counts(std::path::Path::new(&path)))
 }
 
 #[pyfunction]
