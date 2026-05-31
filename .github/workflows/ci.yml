@@ -39,3 +39,20 @@ jobs:
         run: cargo clippy --features extension-module -- -D warnings
       - name: build (python)
         run: cargo build --features extension-module
+
+  python-e2e:
+    name: maturin build + Python E2E vs git
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: build wheel + run the E2E suite (the compiled module vs the real git CLI)
+        run: |
+          python -m venv .venv
+          .venv/bin/pip install -q maturin
+          .venv/bin/maturin develop --release
+          .venv/bin/python python/tests/test_e2e.py
