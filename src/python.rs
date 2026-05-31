@@ -57,8 +57,9 @@ fn is_clean(_path: String) -> PyResult<bool> {
 }
 
 #[pyfunction]
-fn current_branch(_path: String) -> PyResult<Option<String>> {
-    todo!("repo::current_branch (None if detached)")
+fn current_branch(path: String) -> PyResult<Option<String>> {
+    // soft-fail: any error -> None (API.md)
+    Ok(crate::repo::current_branch(std::path::Path::new(&path)).unwrap_or(None))
 }
 
 #[pyfunction]
