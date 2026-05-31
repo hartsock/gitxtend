@@ -111,8 +111,9 @@ fn remote_urls(path: String) -> PyResult<HashMap<String, String>> {
 }
 
 #[pyfunction]
-fn last_commit_date(_path: String) -> PyResult<Option<String>> {
-    todo!("repo::last_commit_date (ISO 8601 %aI)")
+fn last_commit_date(path: String) -> PyResult<Option<String>> {
+    // soft-fail: any error -> None (API.md)
+    Ok(crate::repo::last_commit_date(std::path::Path::new(&path)).unwrap_or(None))
 }
 
 #[pyfunction]
