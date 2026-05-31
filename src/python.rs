@@ -67,8 +67,9 @@ fn tracking_branch(_path: String) -> PyResult<Option<String>> {
 }
 
 #[pyfunction]
-fn head_sha(_path: String) -> PyResult<Option<String>> {
-    todo!("repo::head_sha (repo.head_id)")
+fn head_sha(path: String) -> PyResult<Option<String>> {
+    // soft-fail: any error -> None (API.md)
+    Ok(crate::repo::head_sha(std::path::Path::new(&path)).unwrap_or(None))
 }
 
 #[pyfunction]
