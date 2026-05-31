@@ -1,0 +1,18 @@
+# Rust
+/target/
+**/*.rs.bk
+Cargo.lock
+
+# Python / maturin
+__pycache__/
+*.py[cod]
+*.so
+.venv/
+build/
+dist/
+*.egg-info/
+wheels/
+
+# Editor / OS
+.DS_Store
+*.swp

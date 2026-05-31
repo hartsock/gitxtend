@@ -1,0 +1,33 @@
+[package]
+name = "gitxtend"
+version = "0.0.1"
+edition = "2021"
+license = "Apache-2.0"
+description = "gitoxide-backed git repository tending, exposed to Python via PyO3"
+repository = "https://github.com/hartsock/gitxtend"
+authors = ["Shawn Hartsock"]
+
+# Primary artifact: a PyO3 extension module (Python import target).
+# The optional standalone CLI (M3) is added later as a [[bin]] target reusing
+# the same repo.rs/status.rs core.
+[lib]
+name = "gitxtend"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# Pin to a recent gix release on gnuc; align the Rust toolchain with gilabot
+# CI (.ci/tool-versions.toml). Enable only the features the read side needs
+# (status, revision walk, refs, config, and — for fetch — the network/transport
+# features). Keep the feature set minimal.
+gix = { version = "*", default-features = false, features = [
+    "status",
+    "revision",
+    "dirwalk",
+] }
+
+# PyO3 — extension-module so the build links against the right Python.
+pyo3 = { version = "*", features = ["extension-module"] }
+
+[dev-dependencies]
+# For parity tests vs the git CLI and temp-dir fixtures.
+tempfile = "*"
