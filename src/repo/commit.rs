@@ -43,9 +43,16 @@ mod tests {
     #[test]
     fn commit_nothing_to_commit_counts_as_success() {
         let repo = fixtures::repo();
+        let before = fixtures::git(repo.path(), &["rev-parse", "HEAD"]);
 
         let (ok, stderr) = super::commit(repo.path(), "noop");
 
         assert!(ok, "{stderr}");
+        assert!(stderr.is_empty(), "{stderr}");
+        assert_eq!(
+            fixtures::git(repo.path(), &["rev-parse", "HEAD"]),
+            before,
+            "noop commit must not create a new commit"
+        );
     }
 }

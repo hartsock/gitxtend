@@ -87,6 +87,7 @@ where
         .env_remove("GIT_DIR")
         .env_remove("GIT_WORK_TREE")
         .env_remove("GIT_INDEX_FILE")
+        .env("LC_ALL", "C")
         .output();
 
     match out {
