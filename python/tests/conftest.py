@@ -5,22 +5,7 @@ from unittest.mock import MagicMock
 import pytest
 
 
-PUBLIC_EXTENSION_NAMES = (
-    "RepoStatus",
-    "ahead_behind",
-    "current_branch",
-    "fetch",
-    "head_sha",
-    "is_clean",
-    "is_git_repo",
-    "last_commit_date",
-    "log_subjects",
-    "remote_head_sha",
-    "remote_urls",
-    "repo_status",
-    "rev_list_count",
-    "status_counts",
-    "tracking_branch",
+PLANNED_WRITE_EXTENSION_NAMES = (
     "pull",
     "push",
     "add",
@@ -41,8 +26,9 @@ def mock_gitxtend(monkeypatch):
     import gitxtend._gitxtend as extension
 
     mock_extension = MagicMock(name="gitxtend._gitxtend")
+    public_extension_names = (*gitxtend.__all__, *PLANNED_WRITE_EXTENSION_NAMES)
 
-    for name in PUBLIC_EXTENSION_NAMES:
+    for name in public_extension_names:
         mock = MagicMock(name=f"gitxtend._gitxtend.{name}")
         setattr(mock_extension, name, mock)
         monkeypatch.setattr(extension, name, mock, raising=False)
