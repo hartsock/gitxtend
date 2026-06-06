@@ -27,11 +27,11 @@ cargo build --features extension-module
 # .venv with maturin installed. CI is the authoritative gate.
 if [ -x .venv/bin/maturin ]; then
   echo "[pre-push] maturin develop + pytest coverage"
-  .venv/bin/maturin develop --release >/dev/null
+  .venv/bin/maturin develop --release --extras dev >/dev/null
   .venv/bin/python -m pytest python/tests/ --cov=gitxtend --cov-fail-under=80
 elif [ -x .venv/Scripts/maturin.exe ]; then
   echo "[pre-push] maturin develop + pytest coverage"
-  .venv/Scripts/maturin.exe develop --release >/dev/null
+  .venv/Scripts/maturin.exe develop --release --extras dev >/dev/null
   .venv/Scripts/python.exe -m pytest python/tests/ --cov=gitxtend --cov-fail-under=80
 else
   echo "[pre-push] (skipping Python E2E — no .venv/bin/maturin; gated by CI python-e2e)"
