@@ -43,6 +43,8 @@ mod tests {
     #[test]
     fn commit_nothing_to_commit_counts_as_success() {
         let repo = fixtures::repo();
+        fixtures::git(repo.path(), &["config", "user.name", "qa"]);
+        fixtures::git(repo.path(), &["config", "user.email", "qa@example.com"]);
         let before = fixtures::git(repo.path(), &["rev-parse", "HEAD"]);
 
         let (ok, stderr) = super::commit(repo.path(), "noop");
