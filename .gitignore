@@ -7,11 +7,14 @@ Cargo.lock
 __pycache__/
 *.py[cod]
 *.so
+*.pdb
 .venv/
 build/
 dist/
 *.egg-info/
 wheels/
+.coverage
+htmlcov/
 
 # Editor / OS
 .DS_Store

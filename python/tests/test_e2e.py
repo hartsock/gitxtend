@@ -17,6 +17,9 @@ import tempfile
 import unittest
 
 import gitxtend
+import pytest
+
+pytestmark = pytest.mark.integration
 
 _ENV = {
     **os.environ,
