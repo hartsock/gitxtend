@@ -22,6 +22,10 @@ pub fn commit(path: &Path, message: &str) -> (bool, String) {
 mod tests {
     use crate::repo::fixtures;
 
+    // These tests exercise `run_git`, which intentionally preserves host git
+    // config for production parity. Set repo-local config when behavior depends
+    // on identity or other git settings.
+
     #[test]
     fn commit_creates_commit_with_message() {
         let repo = fixtures::repo();
