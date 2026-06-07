@@ -17,6 +17,10 @@
 #[allow(unused_imports)]
 pub use crate::error::{GitxtendError, Result};
 
+use std::ffi::OsStr;
+use std::path::Path;
+use std::process::Command;
+
 // ---- method registrations (one block per implemented method) -------------
 // (methods land here as M1 progresses — see docs/ROADMAP.md M1 ordering)
 
@@ -58,6 +62,43 @@ pub use last_commit_date::last_commit_date;
 
 mod fetch;
 pub use fetch::{fetch, fetch_result};
+
+mod pull;
+pub use pull::pull;
+
+mod push;
+pub use push::push;
+
+mod add;
+pub use add::add;
+
+mod commit;
+pub use commit::commit;
+
+fn run_git<I, S>(path: &Path, args: I) -> (bool, String, String)
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<OsStr>,
+{
+    let out = Command::new("git")
+        .arg("-C")
+        .arg(path)
+        .args(args)
+        .env_remove("GIT_DIR")
+        .env_remove("GIT_WORK_TREE")
+        .env_remove("GIT_INDEX_FILE")
+        .env("LC_ALL", "C")
+        .output();
+
+    match out {
+        Ok(out) => (
+            out.status.success(),
+            String::from_utf8_lossy(&out.stderr).trim().to_string(),
+            String::from_utf8_lossy(&out.stdout).trim().to_string(),
+        ),
+        Err(e) => (false, e.to_string(), String::new()),
+    }
+}
 
 /// Temp-dir git fixtures shared by the per-method parity tests.
 ///
