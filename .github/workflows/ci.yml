@@ -54,5 +54,5 @@ jobs:
         run: |
           python -m venv .venv
           .venv/bin/pip install -q maturin
-          .venv/bin/maturin develop --release
-          .venv/bin/python python/tests/test_e2e.py
+          .venv/bin/maturin develop --release --extras dev
+          .venv/bin/python -m pytest python/tests/ --cov=gitxtend --cov-fail-under=80

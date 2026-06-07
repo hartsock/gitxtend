@@ -19,6 +19,13 @@ classifiers = [
 [project.urls]
 Repository = "https://github.com/hartsock/gitxtend"
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=8,<9",
+    "pytest-cov>=6,<7",
+    "pytest-mock>=3,<4",
+]
+
 [tool.maturin]
 # Compiled module imported as `import gitxtend`. Type stubs in python/gitxtend.
 # `extension-module` is a crate feature that layers on `python` (which pulls
@@ -27,3 +34,20 @@ Repository = "https://github.com/hartsock/gitxtend"
 features = ["extension-module"]
 python-source = "python"
 module-name = "gitxtend._gitxtend"
+
+[tool.pytest.ini_options]
+addopts = [
+    "--strict-markers",
+]
+markers = [
+    "integration: tests that exercise the compiled extension and real git CLI",
+]
+testpaths = ["python/tests"]
+
+[tool.coverage.run]
+branch = true
+source = ["gitxtend"]
+omit = ["python/tests/*"]
+
+[tool.coverage.report]
+fail_under = 80
