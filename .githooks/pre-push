@@ -5,6 +5,9 @@
 # CI steps, update this hook to match (and vice-versa). Do not bypass with
 # --no-verify; if a check fails, fix the issue.
 #
+# NOTE: .github/workflows/publish.yml (abi3 PyPI wheels) fires on vX.Y.Z tags
+# and is NOT mirrored here — publishing to PyPI is a release gate only.
+#
 # Install once per clone:  git config core.hooksPath .githooks
 set -euo pipefail
 

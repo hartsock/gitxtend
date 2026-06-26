@@ -2,6 +2,9 @@
 #
 # HOOK PARITY: this pipeline is mirrored by .githooks/pre-push. When editing the
 # steps here, update the hook to match (and vice-versa).
+# PUBLISH PIPELINE: .github/workflows/publish.yml fires on vX.Y.Z tags and uploads
+# abi3 manylinux/macOS/Windows wheels + an sdist to PyPI. It is NOT mirrored by the
+# pre-push hook (uploading to PyPI is a release gate only).
 name: ci
 
 on:

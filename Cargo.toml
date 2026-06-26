@@ -46,7 +46,7 @@ gix = { version = "0.70", features = [
 # PyO3 — only compiled when the `python` feature is on. `extension-module` is
 # layered via the crate feature of the same name, so `cargo test` links no
 # libpython and the pure-Rust core stays interpreter-free.
-pyo3 = { version = "0.28", optional = true, default-features = false, features = ["macros"] }
+pyo3 = { version = "0.28", optional = true, default-features = false, features = ["macros", "abi3-py39"] }
 
 [dev-dependencies]
 # Temp-dir fixtures for parity tests vs the git CLI.
