@@ -1,0 +1,135 @@
+# gitxtend PyPI publish — fires on a vX.Y.Z tag or workflow_dispatch.
+#
+# HOOK PARITY: this pipeline is additive (publish is not mirrored by the pre-push
+# hook — uploading to PyPI is a release gate only). The pre-push hook runs the
+# same build + test steps that the `check` job in ci.yml runs.
+#
+# Publishes abi3 maturin wheels for:
+#   - linux  x86_64 + aarch64  (via QEMU)
+#   - macOS  x86_64 + arm64   (via two native runners, combined into universal2)
+#   - windows x86_64
+#
+# The wheel uses cp39 abi3 (--interpreter python3.9 --abi3) so one wheel covers
+# Python 3.9+ on each platform. pyproject.toml declares requires-python = ">=3.11"
+# which is still compatible (the abi3 tag is the build ABI floor, not the runtime
+# floor — pip enforces pyproject.toml's requires-python separately).
+
+name: publish
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to publish (e.g. v0.1.0)"
+        required: true
+
+env:
+  CARGO_TERM_COLOR: always
+  # maturin needs this to pick the right Python for abi3 builds.
+  MATURIN_PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+
+jobs:
+  # ── Linux x86_64 + aarch64 (manylinux) ───────────────────────────────────
+  linux:
+    name: linux (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: [x86_64, aarch64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: build wheel (manylinux abi3)
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          args: --release --out dist --features extension-module --interpreter python3.11 --abi3
+          manylinux: auto
+          sccache: "true"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-linux-${{ matrix.target }}
+          path: dist
+
+  # ── macOS x86_64 + arm64 (combined into universal2) ──────────────────────
+  macos:
+    name: macos (universal2)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: build wheel (universal2 abi3)
+        uses: PyO3/maturin-action@v1
+        with:
+          target: universal2-apple-darwin
+          args: --release --out dist --features extension-module --interpreter python3.11 --abi3
+          sccache: "true"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-macos-universal2
+          path: dist
+
+  # ── Windows x86_64 ───────────────────────────────────────────────────────
+  windows:
+    name: windows (x86_64)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: build wheel (abi3)
+        uses: PyO3/maturin-action@v1
+        with:
+          target: x86_64
+          args: --release --out dist --features extension-module --interpreter python3.11 --abi3
+          sccache: "true"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-windows-x86_64
+          path: dist
+
+  # ── sdist ────────────────────────────────────────────────────────────────
+  sdist:
+    name: sdist
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: build sdist
+        uses: PyO3/maturin-action@v1
+        with:
+          command: sdist
+          args: --out dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-sdist
+          path: dist
+
+  # ── Upload to PyPI ────────────────────────────────────────────────────────
+  release:
+    name: upload to PyPI
+    runs-on: ubuntu-latest
+    needs: [linux, macos, windows, sdist]
+    environment:
+      name: pypi
+      url: https://pypi.org/p/gitxtend
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: wheels-*
+          merge-multiple: true
+          path: dist
+      - name: publish
+        uses: PyO3/maturin-action@v1
+        with:
+          command: upload
+          args: --non-interactive --skip-existing dist/*
