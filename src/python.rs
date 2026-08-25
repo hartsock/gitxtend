@@ -149,6 +149,30 @@ fn repo_status(path: String, fetch: bool) -> PyResult<RepoStatus> {
     })
 }
 
+#[pyfunction]
+#[pyo3(signature = (path, recursive=true))]
+fn submodule_status(
+    path: String,
+    recursive: bool,
+) -> PyResult<Vec<(String, String, String, String)>> {
+    Ok(
+        crate::repo::submodule_status(std::path::Path::new(&path), recursive)
+            .into_iter()
+            .map(|entry| (entry.path, entry.state, entry.commit, entry.detail))
+            .collect(),
+    )
+}
+
+#[pyfunction]
+#[pyo3(signature = (path, recursive=true, update_remote=true))]
+fn sync_submodules(path: String, recursive: bool, update_remote: bool) -> PyResult<(bool, String)> {
+    Ok(crate::repo::sync_submodules(
+        std::path::Path::new(&path),
+        recursive,
+        update_remote,
+    ))
+}
+
 #[pymodule]
 fn _gitxtend(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<RepoStatus>()?;
@@ -166,5 +190,7 @@ fn _gitxtend(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(status_counts, m)?)?;
     m.add_function(wrap_pyfunction!(fetch, m)?)?;
     m.add_function(wrap_pyfunction!(repo_status, m)?)?;
+    m.add_function(wrap_pyfunction!(submodule_status, m)?)?;
+    m.add_function(wrap_pyfunction!(sync_submodules, m)?)?;
     Ok(())
 }

@@ -100,6 +100,10 @@ where
     }
 }
 
+mod submodules;
+pub use submodules::{submodule_status, sync_submodules, SubmoduleStatusEntry};
+
+
 /// Temp-dir git fixtures shared by the per-method parity tests.
 ///
 /// Fixtures are built with the real `git` CLI, so each parity test asserts

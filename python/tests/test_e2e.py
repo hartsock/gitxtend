@@ -42,6 +42,18 @@ def git(repo: str, *args: str) -> str:
     return out.stdout.strip()
 
 
+def git_allow_file_protocol(repo: str, *args: str) -> str:
+    out = subprocess.run(
+        ["git", "-C", repo, "-c", "protocol.file.allow=always", *args],
+        env=_ENV,
+        capture_output=True,
+        text=True,
+    )
+    if out.returncode != 0:
+        raise AssertionError(f"git {args} failed: {out.stderr}")
+    return out.stdout.strip()
+
+
 def norm_iso(s: str) -> str:
     """git renders a UTC offset as `Z` (newer git) or `+00:00` (older); gitxtend
     always emits `+00:00`. Normalize for comparison."""
@@ -174,6 +186,26 @@ class GitxtendE2E(unittest.TestCase):
         self.assertEqual(gitxtend.remote_urls(r), {})
         git(r, "remote", "add", "origin", "https://example.com/x.git")
         self.assertEqual(gitxtend.remote_urls(r), {"origin": "https://example.com/x.git"})
+
+    def test_submodule_status(self):
+        parent = self.mkrepo()
+        child = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, child, ignore_errors=True)
+        git(child, "init", "-q", "-b", "main")
+        self.commit(child, "hello.txt", "init child")
+        git_allow_file_protocol(parent, "submodule", "add", child, "mods")
+        git(parent, "add", "-A")
+        git(parent, "commit", "-q", "-m", "add submodule")
+
+        status = gitxtend.submodule_status(parent)
+        self.assertEqual(status[0][0], "mods")
+        self.assertEqual(status[0][1], "clean")
+
+        shutil.rmtree(os.path.join(parent, "mods"))
+        self.assertEqual(gitxtend.submodule_status(parent)[0][1], "not-initialized")
+        ok, stderr = gitxtend.sync_submodules(parent, True, False)
+        self.assertTrue(ok, stderr)
+        self.assertEqual(gitxtend.submodule_status(parent)[0][1], "clean")
 
     def test_last_commit_date(self):
         r = self.mkrepo()

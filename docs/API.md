@@ -56,6 +56,15 @@ def last_commit_date(path) -> str | None       # soft-fail
 
 def status_counts(path) -> tuple[int, int]     # soft-fail ((0,0) on error)
     # GitService.status_counts — (modified, untracked) from porcelain status
+
+def submodule_status(path, recursive=True) -> list[tuple[str, str, str, str]]
+    # Returns rows from `git submodule status`:
+    #   (path, state, commit, detail)
+    # state ∈ {"clean","not-initialized","out-of-date","unmerged","unknown"}
+
+def sync_submodules(path, recursive=True, update_remote=True) -> tuple[bool, str]
+    # Runs `git submodule update --init` with optional `--recursive` and
+    # `--remote`. Returns (ok, stderr).
 ```
 
 ## The one network call in v1 scope
