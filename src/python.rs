@@ -173,6 +173,83 @@ fn sync_submodules(path: String, recursive: bool, update_remote: bool) -> PyResu
     ))
 }
 
+/// One submodule that moved during `update_submodules`.
+#[pyclass(skip_from_py_object)]
+#[derive(Clone)]
+pub struct SubmoduleChange {
+    #[pyo3(get)]
+    pub path: String,
+    #[pyo3(get)]
+    pub from_commit: String,
+    #[pyo3(get)]
+    pub to_commit: String,
+    #[pyo3(get)]
+    pub initialized: bool,
+    #[pyo3(get)]
+    pub branch: String,
+}
+
+/// What `update_submodules` did.
+#[pyclass(skip_from_py_object)]
+#[derive(Clone)]
+pub struct SubmoduleUpdate {
+    #[pyo3(get)]
+    pub ok: bool,
+    #[pyo3(get)]
+    pub changed: Vec<SubmoduleChange>,
+    #[pyo3(get)]
+    pub commit: Option<String>,
+    #[pyo3(get)]
+    pub stderr: String,
+}
+
+#[pyfunction]
+#[pyo3(signature = (path, recursive=true, remote=true, commit=false, message=None))]
+fn update_submodules(
+    path: String,
+    recursive: bool,
+    remote: bool,
+    commit: bool,
+    message: Option<String>,
+) -> PyResult<SubmoduleUpdate> {
+    let report = crate::repo::update_submodules(
+        std::path::Path::new(&path),
+        &crate::repo::UpdateOptions {
+            recursive,
+            remote,
+            commit,
+            message,
+        },
+    );
+    Ok(SubmoduleUpdate {
+        ok: report.ok,
+        changed: report
+            .changed
+            .into_iter()
+            .map(|c| SubmoduleChange {
+                path: c.path,
+                from_commit: c.from,
+                to_commit: c.to,
+                initialized: c.initialized,
+                branch: c.branch,
+            })
+            .collect(),
+        commit: report.commit,
+        stderr: report.stderr,
+    })
+}
+
+/// Run the `gitxtend` command line and hand back `(exit_code, stdout, stderr)`.
+///
+/// This is what backs the `gitxtend` console script. It executes the SAME
+/// `crate::cli::run` the standalone binary does, so the two front ends cannot
+/// disagree about flags, output, or exit codes — there is only one parser.
+#[pyfunction]
+fn cli_main(args: Vec<String>) -> PyResult<(u8, String, String)> {
+    let outcome = crate::cli::run(&args);
+    Ok((outcome.code, outcome.stdout, outcome.stderr))
+}
+
 #[pymodule]
 fn _gitxtend(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<RepoStatus>()?;
@@ -192,5 +269,9 @@ fn _gitxtend(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(repo_status, m)?)?;
     m.add_function(wrap_pyfunction!(submodule_status, m)?)?;
     m.add_function(wrap_pyfunction!(sync_submodules, m)?)?;
+    m.add_class::<SubmoduleChange>()?;
+    m.add_class::<SubmoduleUpdate>()?;
+    m.add_function(wrap_pyfunction!(update_submodules, m)?)?;
+    m.add_function(wrap_pyfunction!(cli_main, m)?)?;
     Ok(())
 }

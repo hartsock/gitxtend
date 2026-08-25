@@ -101,8 +101,10 @@ where
 }
 
 mod submodules;
-pub use submodules::{submodule_status, sync_submodules, SubmoduleStatusEntry};
-
+pub use submodules::{
+    submodule_status, sync_submodules, update_submodules, SubmoduleChange, SubmoduleStatusEntry,
+    UpdateOptions, UpdateReport,
+};
 
 /// Temp-dir git fixtures shared by the per-method parity tests.
 ///

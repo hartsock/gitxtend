@@ -7,11 +7,18 @@ description = "gitoxide-backed git repository tending, exposed to Python via PyO
 repository = "https://github.com/hartsock/gitxtend"
 authors = ["Shawn Hartsock"]
 
-# Primary artifact: a PyO3 extension module (Python import target). The optional
-# standalone CLI (M3) is added later as a [[bin]] target reusing repo/status.
+# Primary artifact: a PyO3 extension module (Python import target).
 [lib]
 name = "gitxtend"
 crate-type = ["cdylib", "rlib"]
+
+# The standalone CLI (roadmap M3): `gitxtend submodule sync|status`. It links the
+# rlib above and uses no PyO3, so it builds under every feature combination —
+# including `extension-module`, where the linker simply drops the unreferenced
+# pyo3 objects. Verified by the `build (python)` CI step, which builds all targets.
+[[bin]]
+name = "gitxtend"
+path = "src/main.rs"
 
 [features]
 # Pure-Rust core builds by DEFAULT → `cargo test` / `cargo build` need no Python

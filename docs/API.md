@@ -63,9 +63,48 @@ def submodule_status(path, recursive=True) -> list[tuple[str, str, str, str]]
     # state ∈ {"clean","not-initialized","out-of-date","unmerged","unknown"}
 
 def sync_submodules(path, recursive=True, update_remote=True) -> tuple[bool, str]
-    # Runs `git submodule update --init` with optional `--recursive` and
-    # `--remote`. Returns (ok, stderr).
+    # Raw primitive. Runs `git submodule update --init` with optional
+    # `--recursive` and `--remote`. Returns (ok, stderr). Reports nothing about
+    # WHAT moved and leaves the superproject holding modified gitlinks — prefer
+    # update_submodules below unless you specifically want the bare command.
+
+def update_submodules(path, recursive=True, remote=True, commit=False, message=None)
+        -> SubmoduleUpdate
+    # The whole "keep every submodule on the tip of the branch it tracks"
+    # operation: snapshot -> update -> diff the snapshots -> optionally record.
+    #
+    #   SubmoduleUpdate.ok       bool           every step succeeded
+    #   SubmoduleUpdate.changed  [SubmoduleChange]
+    #   SubmoduleUpdate.commit   str | None     superproject commit, if recorded
+    #   SubmoduleUpdate.stderr   str            diagnostics from the failing step
+    #
+    #   SubmoduleChange.path         str   submodule path in the superproject
+    #   SubmoduleChange.from_commit  str   where it sat before
+    #   SubmoduleChange.to_commit    str   where it sits now
+    #   SubmoduleChange.initialized  bool  this run checked it out for the first
+    #                                      time (the SHA may not have moved)
+    #   SubmoduleChange.branch       str   tracked branch from .gitmodules; empty
+    #                                      when none is declared (git then
+    #                                      follows the remote's default branch)
+    #
+    # Idempotent: a repeat run reports changed == [] and makes no empty commit.
+    # `commit=True` records only TOP-LEVEL gitlinks; see the note below.
 ```
+
+## Why an update is three steps, not one
+
+`git submodule update --remote` moves each submodule's working tree to the tip
+of the branch it tracks and stops there — leaving a **detached HEAD** in each
+submodule and a **modified gitlink** in the superproject. On its own it makes
+the superproject dirty rather than up to date: the next plain
+`git submodule update` snaps everything back to the SHA the superproject still
+records. Recording the bumps is a separate commit, and that is what
+`update_submodules(..., commit=True)` adds.
+
+With `recursive=True`, a nested submodule appears as `outer/inner`. The
+superproject cannot stage that path — it lives inside `outer` — so `commit=True`
+records **top-level** gitlinks only. Recording a nested bump needs a commit
+inside `outer` first, which is left to the caller rather than done implicitly.
 
 ## The one network call in v1 scope
 

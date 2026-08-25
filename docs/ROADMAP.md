@@ -29,9 +29,14 @@ Implement, with parity tests vs the `git` CLI, in this order:
 - Run the git-tend `scan` / `status` across the real workspace; compare
   output to the subprocess implementation byte-for-byte.
 
-## M3 — Standalone CLI (optional)
-- Add a `[[bin]]` target reusing `repo.rs`/`status.rs` so `gitxtend status
-  <dir>` works without Python (for cron / shell). Same logic, no PyO3.
+## M3 — Standalone CLI (optional) — *started*
+- **Done:** `[[bin]] gitxtend` exists and ships `gitxtend submodule sync` /
+  `gitxtend submodule status`, with no PyO3 in the path. The command itself
+  lives in `src/cli.rs` (a pure `argv -> (code, stdout, stderr)` function), so
+  the binary and the `gitxtend` Python console script are both shims over the
+  same code rather than two parsers — pinned by a front-end parity test.
+- **Next:** `gitxtend status <dir>` over the `repo_status` roll-up, so the read
+  side is reachable from cron/shell too.
 
 ## M4 — Write side (only after read side is trusted in prod)
 - Evaluate porting `pull --ff-only`, `push`, `add`, `commit`, `stash`,
