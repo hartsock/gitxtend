@@ -27,8 +27,22 @@ pytestmark = pytest.mark.integration
 
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# Variables by which an ambient git process points its children at *its*
+# repository, overriding `-C`. A pre-push hook runs with GIT_DIR set, so
+# inheriting these would silently retarget every fixture command at the real
+# checkout. Mirrors `AMBIENT_REPO_ENV` in src/repo/mod.rs.
+_AMBIENT_REPO_ENV = (
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_INDEX_FILE",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_COMMON_DIR",
+    "GIT_NAMESPACE",
+)
+
 _ENV = {
-    **os.environ,
+    **{k: v for k, v in os.environ.items() if k not in _AMBIENT_REPO_ENV},
     "GIT_CONFIG_GLOBAL": "/dev/null",
     "GIT_CONFIG_SYSTEM": "/dev/null",
     "GIT_AUTHOR_NAME": "qa",
@@ -265,6 +279,15 @@ class GitxtendE2E(unittest.TestCase):
             git(child, "checkout", "-q", branch)
         self.commit(child, "hello.txt", "advance")
         return git(child, "rev-parse", "HEAD")
+
+    def test_fixture_env_scrubs_the_ambient_repo_pointers(self):
+        """Regression: the E2E fixture env must not inherit GIT_DIR & friends.
+
+        Under a pre-push hook `GIT_DIR` is set, and it overrides `git -C`. An
+        inherited one pointed the fixtures at the developer's own checkout.
+        """
+        for key in _AMBIENT_REPO_ENV:
+            self.assertNotIn(key, _ENV)
 
     def test_submodule_status(self):
         parent, _child = self.mksuper()

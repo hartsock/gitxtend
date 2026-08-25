@@ -204,12 +204,10 @@ fn tracked_branches(path: &Path) -> BTreeMap<String, String> {
 /// still operates on `path`.
 fn git_in(path: &Path, args: &[&str]) -> Command {
     let mut cmd = Command::new("git");
-    cmd.arg("-C")
-        .arg(path)
-        .args(args)
-        .env_remove("GIT_DIR")
-        .env_remove("GIT_WORK_TREE")
-        .env_remove("GIT_INDEX_FILE");
+    cmd.arg("-C").arg(path).args(args);
+    for key in crate::repo::AMBIENT_REPO_ENV {
+        cmd.env_remove(key);
+    }
     cmd
 }
 
@@ -491,6 +489,31 @@ mod tests {
 
         fn porcelain(&self) -> String {
             fixtures::git(self.parent_path(), &["status", "--porcelain"])
+        }
+    }
+
+    /// The production helper must not inherit the ambient repo pointers either.
+    ///
+    /// `git -C <path>` is NOT sufficient: `GIT_DIR` overrides it, so a caller
+    /// running under a git hook would have these commands act on the hook's
+    /// repository instead of `path`. Asserted on the built command because env
+    /// vars are per-process and these tests run in parallel.
+    #[test]
+    fn git_in_scrubs_the_ambient_repo_env() {
+        let td = tempfile::tempdir().expect("tempdir");
+        let cmd = git_in(td.path(), &["status"]);
+
+        let removed: Vec<&str> = cmd
+            .get_envs()
+            .filter(|(_, value)| value.is_none())
+            .filter_map(|(key, _)| key.to_str())
+            .collect();
+
+        for key in crate::repo::AMBIENT_REPO_ENV {
+            assert!(
+                removed.contains(key),
+                "git_in must remove {key}; removes {removed:?}"
+            );
         }
     }
 

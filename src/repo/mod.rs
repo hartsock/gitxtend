@@ -80,15 +80,12 @@ where
     I: IntoIterator<Item = S>,
     S: AsRef<OsStr>,
 {
-    let out = Command::new("git")
-        .arg("-C")
-        .arg(path)
-        .args(args)
-        .env_remove("GIT_DIR")
-        .env_remove("GIT_WORK_TREE")
-        .env_remove("GIT_INDEX_FILE")
-        .env("LC_ALL", "C")
-        .output();
+    let mut cmd = Command::new("git");
+    cmd.arg("-C").arg(path).args(args).env("LC_ALL", "C");
+    for key in AMBIENT_REPO_ENV {
+        cmd.env_remove(key);
+    }
+    let out = cmd.output();
 
     match out {
         Ok(out) => (
@@ -106,6 +103,23 @@ pub use submodules::{
     UpdateOptions, UpdateReport,
 };
 
+/// Environment variables by which an ambient git process points its children at
+/// *its* repository, overriding `-C` / the current directory.
+///
+/// Every `git` invocation this crate spawns — fixtures included — must remove
+/// them. A pre-push hook runs with `GIT_DIR` set, so a `git` child that inherits
+/// it silently retargets the real repository: fixture `init`/`commit`/`checkout`
+/// then land on the developer's own checkout rather than the temp dir.
+pub(crate) const AMBIENT_REPO_ENV: &[&str] = &[
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_INDEX_FILE",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_COMMON_DIR",
+    "GIT_NAMESPACE",
+];
+
 /// Temp-dir git fixtures shared by the per-method parity tests.
 ///
 /// Fixtures are built with the real `git` CLI, so each parity test asserts
@@ -113,26 +127,41 @@ pub use submodules::{
 /// uses gix. See `docs/PORTING.md` → Testing strategy.
 #[cfg(test)]
 pub(crate) mod fixtures {
+    use super::AMBIENT_REPO_ENV;
     use std::path::Path;
     use std::process::Command;
     use tempfile::TempDir;
 
-    /// Run a `git` subcommand in `dir`, assert success, return trimmed stdout.
+    /// Build the `git` invocation a fixture uses, without running it.
     ///
-    /// Global/system git config is neutralized and a fixed identity is set so
-    /// fixtures are deterministic regardless of the host's `~/.gitconfig`.
-    pub fn git(dir: &Path, args: &[&str]) -> String {
-        let out = Command::new("git")
-            .args(args)
+    /// Split out from [`git`] so the env scrubbing below is directly assertable
+    /// — see `fixture_git_scrubs_the_ambient_repo_env`. Setting `GIT_DIR` in a
+    /// test to prove the behaviour is not an option: env vars are per-process,
+    /// and these tests run in parallel threads.
+    pub fn git_command(dir: &Path, args: &[&str]) -> Command {
+        let mut cmd = Command::new("git");
+        cmd.args(args)
             .current_dir(dir)
             .env("GIT_CONFIG_GLOBAL", "/dev/null")
             .env("GIT_CONFIG_SYSTEM", "/dev/null")
             .env("GIT_AUTHOR_NAME", "fix")
             .env("GIT_AUTHOR_EMAIL", "fix@example.com")
             .env("GIT_COMMITTER_NAME", "fix")
-            .env("GIT_COMMITTER_EMAIL", "fix@example.com")
-            .output()
-            .expect("spawn git");
+            .env("GIT_COMMITTER_EMAIL", "fix@example.com");
+        // Without this the fixture writes to whatever repo the ambient GIT_DIR
+        // names — the developer's own, under a pre-push hook.
+        for key in AMBIENT_REPO_ENV {
+            cmd.env_remove(key);
+        }
+        cmd
+    }
+
+    /// Run a `git` subcommand in `dir`, assert success, return trimmed stdout.
+    ///
+    /// Global/system git config is neutralized and a fixed identity is set so
+    /// fixtures are deterministic regardless of the host's `~/.gitconfig`.
+    pub fn git(dir: &Path, args: &[&str]) -> String {
+        let out = git_command(dir, args).output().expect("spawn git");
         assert!(
             out.status.success(),
             "git {:?} failed: {}",
@@ -164,6 +193,36 @@ pub(crate) mod fixtures {
 
 #[cfg(test)]
 mod tests {
+
+    /// Regression: a fixture `git` must never inherit the ambient repo pointers.
+    ///
+    /// Discovered the hard way — `cargo test` under the pre-push hook (which
+    /// runs with `GIT_DIR` set) retargeted every fixture command at the real
+    /// checkout: it moved a branch onto a fixture commit, created a stray
+    /// branch, and set `core.bare=true` + a `fix@example.com` identity in the
+    /// developer's own config. `-C` and `current_dir` do NOT protect against
+    /// this; `GIT_DIR` wins over both.
+    ///
+    /// Asserted on the built command rather than by setting `GIT_DIR` for real,
+    /// because env vars are per-process and these tests run in parallel.
+    #[test]
+    fn fixture_git_scrubs_the_ambient_repo_env() {
+        let td = tempfile::tempdir().expect("tempdir");
+        let cmd = fixtures::git_command(td.path(), &["status"]);
+
+        let removed: Vec<&str> = cmd
+            .get_envs()
+            .filter(|(_, value)| value.is_none())
+            .filter_map(|(key, _)| key.to_str())
+            .collect();
+
+        for key in super::AMBIENT_REPO_ENV {
+            assert!(
+                removed.contains(key),
+                "fixture git must remove {key}; removes {removed:?}"
+            );
+        }
+    }
     use super::fixtures;
 
     #[test]
