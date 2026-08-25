@@ -4,6 +4,8 @@
 //! - [`error`]  — [`GitxtendError`] + the crate [`Result`] alias.
 //! - [`repo`]   — pure-Rust, gix-backed read primitives (one module per method).
 //! - [`status`] — the `repo_status` roll-up + SyncState logic.
+//! - [`cli`]    — the `gitxtend` command, shared by the binary and the Python
+//!   console script so the two front ends cannot drift.
 //! - `python`   — the PyO3 surface, compiled ONLY with the `python` feature.
 //!
 //! The pure-Rust core (`repo`, `status`) carries NO PyO3, so it unit-tests with
@@ -11,6 +13,7 @@
 //! wheel with `maturin` (which enables `python` + `extension-module`). See
 //! `docs/DESIGN.md` / `docs/PORTING.md`.
 
+pub mod cli;
 pub mod error;
 pub mod repo;
 pub mod status;

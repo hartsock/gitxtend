@@ -10,19 +10,39 @@ Standard library only (no pytest). Run after `maturin develop`:
 
 from __future__ import annotations
 
+import contextlib
+import io
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 
 import gitxtend
 import pytest
+from gitxtend import _cli
 
 pytestmark = pytest.mark.integration
 
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# Variables by which an ambient git process points its children at *its*
+# repository, overriding `-C`. A pre-push hook runs with GIT_DIR set, so
+# inheriting these would silently retarget every fixture command at the real
+# checkout. Mirrors `AMBIENT_REPO_ENV` in src/repo/mod.rs.
+_AMBIENT_REPO_ENV = (
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_INDEX_FILE",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_COMMON_DIR",
+    "GIT_NAMESPACE",
+)
+
 _ENV = {
-    **os.environ,
+    **{k: v for k, v in os.environ.items() if k not in _AMBIENT_REPO_ENV},
     "GIT_CONFIG_GLOBAL": "/dev/null",
     "GIT_CONFIG_SYSTEM": "/dev/null",
     "GIT_AUTHOR_NAME": "qa",
@@ -40,6 +60,56 @@ def git(repo: str, *args: str) -> str:
     if out.returncode != 0:
         raise AssertionError(f"git {args} failed: {out.stderr}")
     return out.stdout.strip()
+
+
+def git_allow_file_protocol(repo: str, *args: str) -> str:
+    out = subprocess.run(
+        ["git", "-C", repo, "-c", "protocol.file.allow=always", *args],
+        env=_ENV,
+        capture_output=True,
+        text=True,
+    )
+    if out.returncode != 0:
+        raise AssertionError(f"git {args} failed: {out.stderr}")
+    return out.stdout.strip()
+
+
+def run_cli(*args: str) -> tuple[int, str, str]:
+    """Drive the console script in-process: (exit_code, stdout, stderr).
+
+    Deliberately goes through `gitxtend._cli.main` — the real console-script
+    entry point — rather than the compiled `cli_main` underneath it, so the
+    Python shim's stream forwarding and exit code are exercised too. Calling the
+    Rust function directly would leave the only untested code in the package.
+    """
+    out, err = io.StringIO(), io.StringIO()
+    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+        code = _cli.main(list(args))
+    return code, out.getvalue(), err.getvalue()
+
+
+def rust_binary() -> str:
+    """Path to the standalone `gitxtend` binary, for the front-end parity test.
+
+    Skips locally when the binary has not been built, but NEVER on CI — a
+    silently-skipped parity test is a green that proves nothing, and CI is the
+    authoritative gate.
+    """
+    override = os.environ.get("GITXTEND_BIN")
+    candidates = [override] if override else [
+        os.path.join(_REPO_ROOT, "target", profile, "gitxtend")
+        for profile in ("release", "debug")
+    ]
+    for candidate in candidates:
+        if candidate and os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+            return candidate
+    message = (
+        "the standalone gitxtend binary is not built "
+        f"(looked in {candidates}); run `cargo build --bin gitxtend`"
+    )
+    if os.environ.get("CI"):
+        raise AssertionError(message)
+    raise unittest.SkipTest(message)
 
 
 def norm_iso(s: str) -> str:
@@ -174,6 +244,163 @@ class GitxtendE2E(unittest.TestCase):
         self.assertEqual(gitxtend.remote_urls(r), {})
         git(r, "remote", "add", "origin", "https://example.com/x.git")
         self.assertEqual(gitxtend.remote_urls(r), {"origin": "https://example.com/x.git"})
+
+    def mksuper(self, branch: str | None = None) -> tuple[str, str]:
+        """A superproject with one submodule at `mods`, returned as (parent, child).
+
+        `branch` is the branch the submodule tracks. The file transport is
+        enabled in both the parent and the submodule config because a `--remote`
+        update fetches from *inside* the submodule, which reads its own config.
+        """
+        parent = self.mkrepo()
+        child = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, child, ignore_errors=True)
+        git(child, "init", "-q", "-b", "main")
+        self.commit(child, "hello.txt", "init child")
+        if branch:
+            git(child, "checkout", "-q", "-b", branch)
+            self.commit(child, "hello.txt", "child on branch")
+
+        git(parent, "config", "protocol.file.allow", "always")
+        git(parent, "config", "user.name", "qa")
+        git(parent, "config", "user.email", "qa@example.com")
+
+        add = ["submodule", "add"]
+        if branch:
+            add += ["-b", branch]
+        git_allow_file_protocol(parent, *add, child, "mods")
+        git(parent, "add", "-A")
+        git(parent, "commit", "-q", "-m", "add submodule")
+        git(os.path.join(parent, "mods"), "config", "protocol.file.allow", "always")
+        return parent, child
+
+    def advance(self, child: str, branch: str | None = None) -> str:
+        if branch:
+            git(child, "checkout", "-q", branch)
+        self.commit(child, "hello.txt", "advance")
+        return git(child, "rev-parse", "HEAD")
+
+    def test_fixture_env_scrubs_the_ambient_repo_pointers(self):
+        """Regression: the E2E fixture env must not inherit GIT_DIR & friends.
+
+        Under a pre-push hook `GIT_DIR` is set, and it overrides `git -C`. An
+        inherited one pointed the fixtures at the developer's own checkout.
+        """
+        for key in _AMBIENT_REPO_ENV:
+            self.assertNotIn(key, _ENV)
+
+    def test_submodule_status(self):
+        parent, _child = self.mksuper()
+
+        status = gitxtend.submodule_status(parent)
+        self.assertEqual(status[0][0], "mods")
+        self.assertEqual(status[0][1], "clean")
+
+        shutil.rmtree(os.path.join(parent, "mods"))
+        self.assertEqual(gitxtend.submodule_status(parent)[0][1], "not-initialized")
+        ok, stderr = gitxtend.sync_submodules(parent, True, False)
+        self.assertTrue(ok, stderr)
+        self.assertEqual(gitxtend.submodule_status(parent)[0][1], "clean")
+
+    def test_update_submodules_advances_and_records(self):
+        parent, child = self.mksuper("devel")
+        tip = self.advance(child, "devel")
+
+        report = gitxtend.update_submodules(parent, commit=True)
+
+        self.assertTrue(report.ok, report.stderr)
+        self.assertEqual(len(report.changed), 1)
+        change = report.changed[0]
+        self.assertEqual(change.path, "mods")
+        self.assertEqual(change.to_commit, tip)
+        self.assertEqual(change.branch, "devel")
+        self.assertFalse(change.initialized)
+        # Recording the bump is what leaves the superproject clean.
+        self.assertIsNotNone(report.commit)
+        self.assertEqual(git(parent, "status", "--porcelain"), "")
+        self.assertEqual(git(parent, "rev-parse", "HEAD:mods"), tip)
+
+    def test_update_submodules_is_idempotent(self):
+        parent, child = self.mksuper("devel")
+        self.advance(child, "devel")
+        first = gitxtend.update_submodules(parent, commit=True)
+        self.assertTrue(first.ok, first.stderr)
+        head = git(parent, "rev-parse", "HEAD")
+
+        second = gitxtend.update_submodules(parent, commit=True)
+
+        self.assertTrue(second.ok, second.stderr)
+        self.assertEqual(second.changed, [])
+        self.assertIsNone(second.commit)
+        self.assertEqual(git(parent, "rev-parse", "HEAD"), head)
+
+    def test_cli_sync_updates_submodules_in_one_command(self):
+        parent, child = self.mksuper("devel")
+        tip = self.advance(child, "devel")
+
+        code, out, err = run_cli("submodule", "sync", parent, "--commit")
+
+        self.assertEqual(code, 0, err)
+        self.assertIn("mods", out)
+        self.assertIn("(devel)", out)
+        self.assertIn("recorded as", out)
+        self.assertEqual(git(parent, "rev-parse", "HEAD:mods"), tip)
+        self.assertEqual(git(parent, "status", "--porcelain"), "")
+
+    def test_cli_sync_without_commit_leaves_the_bump_uncommitted(self):
+        parent, child = self.mksuper("devel")
+        self.advance(child, "devel")
+
+        code, out, _err = run_cli("submodule", "sync", parent)
+
+        self.assertEqual(code, 0)
+        self.assertIn("--commit", out, "must point at the flag that records it")
+        self.assertNotEqual(git(parent, "status", "--porcelain"), "")
+
+    def test_python_dash_m_runs_the_same_command(self):
+        """`python -m gitxtend` is a supported entry point, so pin it.
+
+        Out of process by necessity (the module raises SystemExit at import),
+        which is also why `__main__.py` carries a no-cover pragma.
+        """
+        proc = subprocess.run(
+            [sys.executable, "-m", "gitxtend", "--version"],
+            env=_ENV,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(proc.stdout, run_cli("--version")[1])
+
+    def test_cli_usage_error_exits_2(self):
+        code, _out, err = run_cli("submodule", "definitely-not-a-subcommand")
+        self.assertEqual(code, 2)
+        self.assertIn("USAGE", err)
+
+    def test_cli_front_ends_are_the_same_program(self):
+        """The console script and the standalone binary must agree exactly.
+
+        Both are shims over `gitxtend::cli::run`, so this asserts that claim
+        rather than trusting it: same argv, byte-identical streams and code.
+        """
+        binary = rust_binary()
+        parent, child = self.mksuper("devel")
+        self.advance(child, "devel")
+
+        for argv in (
+            ["submodule", "status", parent],
+            ["submodule", "status", parent, "--json"],
+            ["--version"],
+            ["submodule", "bogus"],
+        ):
+            with self.subTest(argv=argv):
+                via_python = run_cli(*argv)
+                proc = subprocess.run(
+                    [binary, *argv], env=_ENV, capture_output=True, text=True
+                )
+                self.assertEqual(
+                    via_python, (proc.returncode, proc.stdout, proc.stderr)
+                )
 
     def test_last_commit_date(self):
         r = self.mkrepo()

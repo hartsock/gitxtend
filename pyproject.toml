@@ -16,6 +16,14 @@ classifiers = [
     "Programming Language :: Python :: 3",
 ]
 
+[project.scripts]
+# The same command as the standalone Rust binary: both are shims over
+# `gitxtend::cli::run`. Installing the wheel puts `gitxtend` on PATH; if the
+# standalone binary is ALSO installed, whichever comes first on PATH wins — they
+# behave identically, so it does not matter which. `python -m gitxtend` always
+# resolves to this one.
+gitxtend = "gitxtend._cli:main"
+
 [project.urls]
 Repository = "https://github.com/hartsock/gitxtend"
 

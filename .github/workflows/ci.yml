@@ -53,7 +53,16 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      # The standalone CLI, needed by the front-end parity test (it runs the
+      # binary and the console script over the same argv and compares). Without
+      # it that test would SKIP locally — and `CI` being set turns the skip into
+      # a failure, so this step is load-bearing, not a convenience.
+      - name: build the standalone CLI
+        run: cargo build --release --bin gitxtend
+
       - name: build wheel + run the E2E suite (the compiled module vs the real git CLI)
+        env:
+          CI: "1"
         run: |
           python -m venv .venv
           .venv/bin/pip install -q maturin

@@ -5,10 +5,13 @@ detecting unpushed commits, untracked work, and out-of-sync branches across
 many repositories — backed by [gitoxide (`gix`)][gix] and exposed to Python
 through [PyO3]/[maturin].
 
-> **Status: v0.1.0 — read side implemented.** All 13 read primitives plus the
-> `repo_status` roll-up are implemented (Rust/gix) and exposed to Python, each
-> with parity tests vs the `git` CLI and an end-to-end suite. Next:
-> plugin adoption and the write side — see [`docs/ROADMAP.md`](docs/ROADMAP.md).
+> **Status: v0.1.0 — read side implemented, plus the submodule command.** All 13
+> read primitives and the `repo_status` roll-up are implemented (Rust/gix) and
+> exposed to Python, each with parity tests vs the `git` CLI and an end-to-end
+> suite. On top of that: `gitxtend submodule sync`, the one-command
+> [submodule updater](#keeping-a-repo-full-of-submodules-up-to-date), available
+> as a standalone binary and as a Python console script. Next: plugin adoption
+> and the rest of the write side — see [`docs/ROADMAP.md`](docs/ROADMAP.md).
 > [`docs/DESIGN.md`](docs/DESIGN.md) and [`docs/PORTING.md`](docs/PORTING.md)
 > cover the architecture.
 
@@ -52,23 +55,117 @@ work that needs attention, without mutating any repo. All of it is implemented:
 | Modified / untracked counts | `status_counts` | `status_counts(path)` |
 | Fetch from remote | `fetch` | `fetch(path, remote=None)` |
 | **Roll-up** | `check_repo` | `repo_status(path, fetch=True) -> RepoStatus` |
+| Submodule status | — | `submodule_status(path, recursive=True)` |
+| Submodule update (+record) | — | `update_submodules(path, ..., commit=False)` · CLI: `gitxtend submodule sync` |
 
 The **write side** (`pull --ff-only`, `push`, `add`, `commit`, `stash`,
 `branch`, `reset --hard`) stays in the host tool shelling out to `git` until
 the read path is proven in production. See [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
+**One deliberate exception:** the submodule commands below *do* mutate — they
+check out submodules and, with `--commit`, write a commit in the superproject.
+They are also the one place this crate does not use gix: submodule update and
+status are delegated to the local `git` CLI on purpose, so the semantics are
+Git's own rather than a reimplementation of them. Submodule updating is the
+use case that motivated the CLI, and it is self-contained enough not to wait on
+the general write-side port.
+
+## Keeping a repo full of submodules up to date
+
+One command moves every submodule to the tip of the branch it tracks:
+
+```bash
+gitxtend submodule sync                 # the current directory
+gitxtend submodule sync ~/src/myrepo    # or a named one
+```
+
+```
+modA  9bfc36b -> 3bb8896
+modB  2211b7a -> 4ff51bd  (devel)
+
+2 submodules advanced (not recorded — re-run with --commit)
+```
+
+`--commit` records the moves in the superproject, which is what makes them
+stick:
+
+```bash
+gitxtend submodule sync --commit
+gitxtend submodule sync --commit -m "bump vendored deps"
+```
+
+```
+2 submodules advanced, recorded as f14b311
+```
+
+Also available: `gitxtend submodule status` for a structured view, `--json` on
+either subcommand, `--no-remote` to *restore* submodules to the recorded SHAs
+instead of advancing them, and `--no-recursive`. `gitxtend --help` has the rest.
+Exit codes are `0` ok, `1` a git operation failed, `2` bad usage.
+
+### Why `--commit` matters
+
+`git submodule update --remote` moves each submodule's working tree and stops
+there — leaving a detached HEAD in each submodule and a **modified gitlink** in
+the superproject. By itself it makes the superproject *dirty*, not *up to date*:
+the next plain `git submodule update` snaps everything back to the SHA the
+superproject still records. Recording the bumps is a separate commit, and
+`--commit` is it.
+
+Two caveats worth knowing:
+
+- With `--recursive`, a nested submodule shows up as `outer/inner`. The
+  superproject cannot stage that path, so `--commit` records **top-level**
+  gitlinks only; a nested bump needs a commit inside `outer` first.
+- A submodule with no `branch =` line in `.gitmodules` follows the remote's
+  default branch. Those print without a branch annotation, rather than being
+  guessed at.
+
+### Two front ends, one program
+
+The command ships twice: as the standalone `gitxtend` binary (no Python needed —
+good for cron) and as a console script in the wheel. Both are thin shims over
+the same `cli::run` in the library, so they cannot disagree about a flag, an
+output line, or an exit code — a parity test runs both over the same argv and
+compares. `python -m gitxtend` works too.
+
+```bash
+cargo build --release --bin gitxtend    # the standalone binary
+pip install gitxtend                    # puts the console script on PATH
+```
+
+If both are installed, whichever comes first on `PATH` wins; they behave
+identically.
+
+### From Python
+
+```python
+import gitxtend
+
+report = gitxtend.update_submodules("~/src/myrepo", commit=True)
+for change in report.changed:
+    print(change.path, change.from_commit, "->", change.to_commit, change.branch)
+print(report.commit)   # superproject commit that recorded the bumps, or None
+```
+
+Idempotent: a repeat run reports nothing changed and makes no empty commit.
+
 ## Layout
 
 ```
 gitxtend/
-├── Cargo.toml            # Rust crate (cdylib for PyO3; optional bin target)
-├── pyproject.toml        # maturin build backend → Python wheel
+├── Cargo.toml            # Rust crate (cdylib for PyO3 + the `gitxtend` bin)
+├── pyproject.toml        # maturin build backend → Python wheel + console script
 ├── src/
-│   ├── lib.rs            # crate root (error/repo/status modules; python feature)
+│   ├── lib.rs            # crate root (cli/error/repo/status; python feature)
+│   ├── cli.rs            # the `gitxtend` command: argv → (code, stdout, stderr)
+│   ├── main.rs           # the standalone binary — a shim over cli::run
 │   ├── python.rs         # PyO3 module entry — #[pymodule] gitxtend (feature-gated)
 │   ├── repo/             # gix-backed read primitives, one file per method
 │   └── status.rs         # repo_status roll-up + SyncState decision tree
 ├── python/gitxtend/
+│   ├── _cli.py           # console script — the other shim over cli::run
+│   ├── __main__.py       # `python -m gitxtend`
 │   └── __init__.pyi      # type stubs for the compiled module
 └── docs/
     ├── DESIGN.md         # architecture & rationale

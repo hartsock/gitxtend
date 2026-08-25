@@ -11,7 +11,6 @@ pub fn is_git_repo(path: &Path) -> bool {
 mod tests {
     use super::*;
     use crate::repo::fixtures;
-    use std::process::Command;
 
     #[test]
     fn repo_root_and_subdir() {
@@ -34,53 +33,36 @@ mod tests {
         assert!(!is_git_repo(non_repo_path));
     }
 
+    /// Ask the `git` CLI whether `dir` is inside a repository.
+    ///
+    /// Built through `fixtures::git_command` so the oracle is scrubbed of the
+    /// ambient `GIT_DIR`. A raw `Command::new("git")` here answered about
+    /// whatever repo the environment pointed at — under a pre-push hook, the
+    /// developer's own — so the parity assertion compared gix's answer about
+    /// the temp dir against git's answer about a different repository.
+    fn git_says_repo(dir: &std::path::Path) -> bool {
+        fixtures::git_command(dir, &["rev-parse", "--git-dir"])
+            .status()
+            .expect("spawn git")
+            .success()
+    }
+
     #[test]
     fn parity_with_git_cli() {
         let repo_td = fixtures::repo();
         let repo_path = repo_td.path();
 
         // Check the repo path
-        assert_eq!(
-            is_git_repo(repo_path),
-            Command::new("git")
-                .args(["-C", &repo_path.to_string_lossy(), "rev-parse", "--git-dir"])
-                .status()
-                .expect("spawn git")
-                .success()
-        );
+        assert_eq!(is_git_repo(repo_path), git_says_repo(repo_path));
 
         // Check a subdirectory within the repo
         let subdir_path = repo_path.join("subdir");
         std::fs::create_dir(&subdir_path).expect("mkdir");
-        assert_eq!(
-            is_git_repo(&subdir_path),
-            Command::new("git")
-                .args([
-                    "-C",
-                    &subdir_path.to_string_lossy(),
-                    "rev-parse",
-                    "--git-dir"
-                ])
-                .status()
-                .expect("spawn git")
-                .success()
-        );
+        assert_eq!(is_git_repo(&subdir_path), git_says_repo(&subdir_path));
 
         // Check a non-repo path
         let non_repo_td = tempfile::tempdir().expect("tempdir");
         let non_repo_path = non_repo_td.path();
-        assert_eq!(
-            is_git_repo(non_repo_path),
-            Command::new("git")
-                .args([
-                    "-C",
-                    &non_repo_path.to_string_lossy(),
-                    "rev-parse",
-                    "--git-dir"
-                ])
-                .status()
-                .expect("spawn git")
-                .success()
-        );
+        assert_eq!(is_git_repo(non_repo_path), git_says_repo(non_repo_path));
     }
 }
